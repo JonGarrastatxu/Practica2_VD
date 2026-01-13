@@ -5,6 +5,6 @@ account: jongarras
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 16406810
-bundleId: 11432430
+bundleId: 11439576
 url: https://jongarras.shinyapps.io/incendios-shiny/
 version: 1

@@ -1,5 +1,5 @@
 # ============================================================
-# APP SHINY – INCENDIOS FORESTALES EN ESPAÑA (1995–2016)
+# APP SHINY – INCENDIOS FORESTALES EN ESPAÑA (1996–2016)
 # ============================================================
 
 library(shiny)
@@ -19,33 +19,19 @@ fires_raw <- read.csv("incendios.csv", sep = ";")
 fires <- fires_raw %>%
   mutate(
     anio = as.integer(anio),
-    mes = month(deteccion),  # mes para filtro
+    mes_num = month(as.Date(deteccion)),   # mes numérico 1–12
     perdidassuperficiales = as.numeric(perdidassuperficiales),
     causa_binaria = case_when(
       idcausa >= 400 & idcausa <= 499 ~ "intencionado",
       TRUE ~ "no_intencionado"
-    ),
-    deteccion = as.Date(deteccion),
-    extinguido = as.Date(extinguido),
-    tiempo_extincion = as.numeric(extinguido - deteccion),
-    recursos_totales = numeromediospersonal +
-      numeromediospesados +
-      numeromediosaereos
+    )
   )
 
-# ---------------------------
-# LÍMITES MÁXIMOS REALISTAS
-# ---------------------------
-
-fires <- fires %>%
-  mutate(
-    numeromediospersonal = pmin(numeromediospersonal, 10000),
-    numeromediospesados  = pmin(numeromediospesados, 3000),
-    numeromediosaereos   = pmin(numeromediosaereos, 60),
-    recursos_totales = numeromediospersonal +
-      numeromediospesados +
-      numeromediosaereos
-  )
+# Etiquetas para el selector de meses
+mes_labels <- setNames(
+  1:12,
+  paste0(1:12, " - ", month.name)
+)
 
 # ============================================================
 # UI
@@ -63,7 +49,7 @@ ui <- fluidPage(
         "Rango de años:",
         min = min(fires$anio, na.rm = TRUE),
         max = max(fires$anio, na.rm = TRUE),
-        value = c(1995, 2016),
+        value = c(1996, 2016),
         sep = ""
       ),
       
@@ -74,12 +60,11 @@ ui <- fluidPage(
         selected = "Todas"
       ),
       
-      # filtro por mes
       selectInput(
         "mes",
-        "Mes:",
-        choices = c("Todos", 1:12),
-        selected = "Todos"
+        "Mes del año:",
+        choices = c("Todos" = 0, mes_labels),
+        selected = 0
       )
     ),
     
@@ -102,19 +87,14 @@ ui <- fluidPage(
         ),
         
         tabPanel(
-          "Eficacia operativa",
+          "Detección por equipo",
           selectInput(
-            "tipo_recurso",
-            "Tipo de recurso:",
-            choices = c(
-              "Total",
-              "Personal",
-              "Medios pesados",
-              "Medios aéreos"
-            ),
-            selected = "Total"
+            "tipo_incendio",
+            "Tipo de incendio:",
+            choices = c("Todos", sort(unique(fires$claseincendio))),
+            selected = "Todos"
           ),
-          plotlyOutput("eficacia_plot", height = "500px")
+          plotlyOutput("deteccion_plot", height = "500px")
         )
       )
     )
@@ -132,18 +112,17 @@ server <- function(input, output, session) {
   # ---------------------------
   
   fires_filtered <- reactive({
+    
     df <- fires %>%
-      filter(
-        anio >= input$anio[1],
-        anio <= input$anio[2]
-      )
+      filter(anio >= input$anio[1],
+             anio <= input$anio[2])
     
     if (input$comunidad != "Todas") {
       df <- df %>% filter(comunidad == input$comunidad)
     }
     
-    if (input$mes != "Todos") {
-      df <- df %>% filter(mes == as.numeric(input$mes))
+    if (input$mes != 0) {
+      df <- df %>% filter(mes_num == as.integer(input$mes))
     }
     
     df
@@ -173,18 +152,18 @@ server <- function(input, output, session) {
       customdata = ~prop_gif,
       hovertemplate = paste(
         "<b>Año:</b> %{x}<br>",
-        "<b>Superficie quemada:</b> %{y:,.0f} ha<br>",
+        "<b>Superficie quemada:</b> %{y:,.0f} Ha<br>",
         "<b>Proporción GIF:</b> %{customdata:.2f}<extra></extra>"
       )
     ) %>%
       layout(
         xaxis = list(title = "Año"),
-        yaxis = list(title = "Superficie quemada (ha)")
+        yaxis = list(title = "Superficie quemada (Ha)")
       )
   })
   
   # ---------------------------
-  # 2. MAPA GRANDES INCENDIOS (con filtro por mes)
+  # 2. MAPA GRANDES INCENDIOS
   # ---------------------------
   
   output$mapa_gif <- renderLeaflet({
@@ -201,20 +180,11 @@ server <- function(input, output, session) {
       addProviderTiles("CartoDB.Positron") %>%
       addCircleMarkers(
         radius = ~sqrt(perdidassuperficiales) / 5,
-        fillColor = ~colorNumeric(
-          "YlOrRd",
-          perdidassuperficiales
-        )(perdidassuperficiales),
+        fillColor = ~colorNumeric("YlOrRd", perdidassuperficiales)(perdidassuperficiales),
         fillOpacity = 0.6,
         stroke = TRUE,
         color = "black",
-        weight = 0.3,
-        popup = ~paste0(
-          "<b>Año:</b> ", anio, "<br>",
-          "<b>Provincia:</b> ", provincia, "<br>",
-          "<b>Superficie:</b> ",
-          round(perdidassuperficiales), " ha"
-        )
+        weight = 0.3
       )
   })
   
@@ -226,11 +196,7 @@ server <- function(input, output, session) {
     
     meteo <- fires_filtered() %>%
       filter(claseincendio == "gif") %>%
-      select(
-        tempmaxima,
-        humrelativa,
-        perdidassuperficiales
-      ) %>%
+      select(tempmaxima, humrelativa, perdidassuperficiales) %>%
       drop_na()
     
     plot_ly(
@@ -243,8 +209,7 @@ server <- function(input, output, session) {
         size = ~sqrt(perdidassuperficiales) * 0.5 + 2,
         color = ~perdidassuperficiales,
         colorscale = "Reds",
-        showscale = TRUE,
-        colorbar = list(title = "ha")
+        showscale = TRUE
       )
     ) %>%
       layout(
@@ -253,64 +218,37 @@ server <- function(input, output, session) {
       )
   })
   
-  
   # ---------------------------
-  # 4. EFICACIA OPERATIVA
+  # 4. DETECCIÓN POR EQUIPO
   # ---------------------------
   
-  output$eficacia_plot <- renderPlotly({
+  output$deteccion_plot <- renderPlotly({
     
-    df <- fires_filtered() %>%
-      filter(
-        claseincendio == "gif",
-        !is.na(tiempo_extincion),
-        tiempo_extincion >= 0,
-        perdidassuperficiales > 0
-      ) %>%
-      mutate(
-        tiempo_por_ha = tiempo_extincion / perdidassuperficiales,
-        recursos_plot = case_when(
-          input$tipo_recurso == "Total" ~ recursos_totales,
-          input$tipo_recurso == "Personal" ~ numeromediospersonal,
-          input$tipo_recurso == "Medios pesados" ~ numeromediospesados,
-          input$tipo_recurso == "Medios aéreos" ~ numeromediosaereos
-        )
-      ) %>%
-      drop_na(recursos_plot, tiempo_por_ha)
+    df <- fires_filtered()
+    
+    if (input$tipo_incendio != "Todos") {
+      df <- df %>% filter(claseincendio == input$tipo_incendio)
+    }
+    
+    detect_trend <- df %>%
+      filter(!is.na(iddetectadopor)) %>%
+      group_by(anio, iddetectadopor) %>%
+      summarise(n_incendios = n(), .groups = "drop")
     
     plot_ly(
-      df,
-      x = ~recursos_plot,
-      y = ~tiempo_por_ha,
+      detect_trend,
+      x = ~anio,
+      y = ~n_incendios,
+      color = ~iddetectadopor,
       type = "scatter",
-      mode = "markers",
-      marker = list(
-        size = 6,
-        opacity = 0.5,
-        color = "firebrick"
-      )
+      mode = "lines+markers"
     ) %>%
-      add_lines(
-        x = ~recursos_plot,
-        y = ~fitted(
-          loess(tiempo_por_ha ~ recursos_plot, df)
-        ),
-        line = list(color = "steelblue")
-      ) %>%
       layout(
-        xaxis = list(
-          title = paste(
-            "Número de recursos:",
-            input$tipo_recurso
-          )
-        ),
-        yaxis = list(
-          title = "Días por hectárea"
-        ),
-        showlegend = FALSE
+        xaxis = list(title = "Año"),
+        yaxis = list(title = "Número de incendios"),
+        legend = list(title = list(text = "Equipo detector"))
       )
   })
-  
 }
 
 # ============================================================
@@ -318,5 +256,3 @@ server <- function(input, output, session) {
 # ============================================================
 
 shinyApp(ui = ui, server = server)
-
-
