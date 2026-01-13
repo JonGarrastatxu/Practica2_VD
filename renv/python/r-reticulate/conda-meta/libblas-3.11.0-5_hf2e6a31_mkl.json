@@ -1,0 +1,50 @@
+{
+  "build": "5_hf2e6a31_mkl",
+  "build_number": 5,
+  "channel": "https://conda.anaconda.org/conda-forge/win-64",
+  "constrains": [
+    "liblapack  3.11.0   5*_mkl",
+    "libcblas   3.11.0   5*_mkl",
+    "blas 2.305   mkl",
+    "liblapacke 3.11.0   5*_mkl"
+  ],
+  "depends": [
+    "mkl >=2025.3.0,<2026.0a0"
+  ],
+  "extracted_package_dir": "C:\\Users\\jonga\\AppData\\Local\\R-MINI~1\\pkgs\\libblas-3.11.0-5_hf2e6a31_mkl",
+  "features": "",
+  "files": [
+    "Library/bin/libblas.dll",
+    ".nonadmin"
+  ],
+  "fn": "libblas-3.11.0-5_hf2e6a31_mkl.conda",
+  "license": "BSD-3-Clause",
+  "license_family": "BSD",
+  "link": {
+    "source": "C:\\Users\\jonga\\AppData\\Local\\R-MINI~1\\pkgs\\libblas-3.11.0-5_hf2e6a31_mkl",
+    "type": 1
+  },
+  "md5": "f9decf88743af85c9c9e05556a4c47c0",
+  "name": "libblas",
+  "package_tarball_full_path": "C:\\Users\\jonga\\AppData\\Local\\R-MINI~1\\pkgs\\libblas-3.11.0-5_hf2e6a31_mkl.conda",
+  "paths_data": {
+    "paths": [
+      {
+        "_path": "Library/bin/libblas.dll",
+        "path_type": "hardlink",
+        "sha256": "9c117abb01eda6c813f2840e58345c04f9266da66c29a5f5a10b6ce904d29e4b",
+        "sha256_in_prefix": "9c117abb01eda6c813f2840e58345c04f9266da66c29a5f5a10b6ce904d29e4b",
+        "size_in_bytes": 108032
+      }
+    ],
+    "paths_version": 1
+  },
+  "requested_spec": "None",
+  "sha256": "f0cb7b2697461a306341f7ff32d5b361bb84f3e94478464c1e27ee01fc8f276b",
+  "size": 67438,
+  "subdir": "win-64",
+  "timestamp": 1765819100043,
+  "track_features": "",
+  "url": "https://conda.anaconda.org/conda-forge/win-64/libblas-3.11.0-5_hf2e6a31_mkl.conda",
+  "version": "3.11.0"
+}

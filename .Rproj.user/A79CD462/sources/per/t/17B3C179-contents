@@ -1,0 +1,701 @@
+# ==============================================================================
+# APP SHINY: ANÁLISIS DE INCENDIOS FORESTALES EN ESPAÑA (1968-2016)
+# VERSIÓN CON DIAGNÓSTICO Y CARGA ROBUSTA
+# ==============================================================================
+
+# LIBRERÍAS REQUERIDAS
+library(shiny)
+library(shinydashboard)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(leaflet)
+library(DT)
+library(lubridate)
+library(viridis)
+library(shinyWidgets)
+
+# ==============================================================================
+# 1. INTERFAZ DE USUARIO (UI)
+# ==============================================================================
+ui <- dashboardPage(
+  
+  # Cabecera personalizada
+  dashboardHeader(
+    title = tags$div(
+      tags$img(src = "https://cdn-icons-png.flaticon.com/512/3037/3037890.png", 
+               height = "30px"),
+      "Análisis de Incendios Forestales en España",
+      style = "display: flex; align-items: center; gap: 10px;"
+    ),
+    titleWidth = 350
+  ),
+  
+  # Barra lateral con menú de navegación
+  dashboardSidebar(
+    width = 250,
+    sidebarMenu(
+      id = "tabs",
+      menuItem("📊 Visión General", tabName = "overview", icon = icon("dashboard")),
+      menuItem("📋 Datos Crudos", tabName = "data", icon = icon("database")),
+      menuItem("🔧 Diagnóstico", tabName = "diagnostic", icon = icon("bug")),
+      menuItem("ℹ️ Acerca de", tabName = "about", icon = icon("info-circle"))
+    ),
+    
+    # Panel de filtros globales
+    hr(),
+    h4("🔍 Filtros Globales", style = "padding: 10px;"),
+    
+    # Selector de rango de años
+    sliderInput(
+      "year_range", 
+      "Rango de Años:",
+      min = 1968, 
+      max = 2016, 
+      value = c(2016, 2016),
+      step = 1,
+      sep = ""
+    ),
+    
+    # Botón para resetear filtros
+    actionButton("reset_filters", "🔄 Restablecer Filtros", 
+                 class = "btn-primary",
+                 style = "width: 100%; margin-top: 10px;")
+  ),
+  
+  # Cuerpo principal de la aplicación
+  dashboardBody(
+    
+    # Estilos CSS personalizados
+    tags$head(
+      tags$style(HTML("
+        /* Estilos generales */
+        .main-header .logo {
+          font-weight: bold;
+          font-size: 18px;
+        }
+        
+        /* Tarjetas de información */
+        .info-card {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border-radius: 10px;
+          padding: 15px;
+          margin-bottom: 10px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .info-card h3 {
+          margin-top: 0;
+          font-size: 2.5em;
+          font-weight: bold;
+        }
+        
+        .info-card p {
+          margin-bottom: 0;
+          font-size: 0.9em;
+          opacity: 0.9;
+        }
+        
+        /* Mejoras para gráficos */
+        .plot-container {
+          background: white;
+          border-radius: 8px;
+          padding: 15px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+          margin-bottom: 20px;
+        }
+      "))
+    ),
+    
+    # Contenido de las pestañas
+    tabItems(
+      
+      # ============================================
+      # PESTAÑA 1: VISIÓN GENERAL (SIMPLIFICADA)
+      # ============================================
+      tabItem(
+        tabName = "overview",
+        h2("🔥 Visión General de Incendios Forestales"),
+        
+        fluidRow(
+          # Tarjetas de métricas clave
+          valueBoxOutput("total_incendios"),
+          valueBoxOutput("superficie_quemada"),
+          valueBoxOutput("anio_min"),
+          valueBoxOutput("anio_max")
+        ),
+        
+        fluidRow(
+          # Gráfico simple de prueba
+          box(
+            title = "Distribución por Año (Gráfico de Prueba)",
+            status = "primary",
+            solidHeader = TRUE,
+            width = 12,
+            plotlyOutput("test_plot", height = "400px")
+          )
+        ),
+        
+        fluidRow(
+          # Tabla de resumen
+          box(
+            title = "Resumen de Datos",
+            status = "info",
+            solidHeader = TRUE,
+            width = 12,
+            tableOutput("data_summary")
+          )
+        )
+      ),
+      
+      # ============================================
+      # PESTAÑA 2: DATOS CRUDOS
+      # ============================================
+      tabItem(
+        tabName = "data",
+        h2("📋 Exploración de Datos"),
+        
+        fluidRow(
+          box(
+            title = "Primeras 10 filas del Dataset",
+            status = "primary",
+            width = 12,
+            DTOutput("raw_data_head")
+          )
+        ),
+        
+        fluidRow(
+          box(
+            title = "Estructura del Dataset",
+            status = "info",
+            width = 12,
+            verbatimTextOutput("data_structure")
+          )
+        ),
+        
+        fluidRow(
+          box(
+            title = "Estadísticas Básicas",
+            status = "warning",
+            width = 12,
+            verbatimTextOutput("data_stats")
+          )
+        )
+      ),
+      
+      # ============================================
+      # PESTAÑA 3: DIAGNÓSTICO
+      # ============================================
+      tabItem(
+        tabName = "diagnostic",
+        h2("🔧 Diagnóstico de Datos"),
+        
+        fluidRow(
+          box(
+            title = "Información de Carga",
+            status = "info",
+            width = 12,
+            verbatimTextOutput("load_info")
+          )
+        ),
+        
+        fluidRow(
+          column(6,
+                 box(
+                   title = "Columnas del Dataset",
+                   status = "primary",
+                   width = 12,
+                   verbatimTextOutput("column_names")
+                 )
+          ),
+          column(6,
+                 box(
+                   title = "Valores Faltantes",
+                   status = "warning",
+                   width = 12,
+                   verbatimTextOutput("missing_values")
+                 )
+          )
+        ),
+        
+        fluidRow(
+          box(
+            title = "Prueba de Gráfico Simple",
+            status = "success",
+            width = 12,
+            actionButton("test_plot_btn", "Generar Gráfico de Prueba"),
+            plotlyOutput("diagnostic_plot", height = "400px")
+          )
+        )
+      ),
+      
+      # ============================================
+      # PESTAÑA 4: ACERCA DE
+      # ============================================
+      tabItem(
+        tabName = "about",
+        h2("ℹ️ Acerca de esta Aplicación"),
+        
+        fluidRow(
+          box(
+            title = "Información del Proyecto",
+            status = "info",
+            width = 12,
+            
+            h3("Objetivo del Proyecto"),
+            p("Esta aplicación tiene como objetivo analizar y visualizar datos históricos 
+              de incendios forestales en España."),
+            
+            h3("Instrucciones de Uso"),
+            tags$ol(
+              tags$li("Verifica que el archivo 'incendios.csv' esté en el mismo directorio que este script"),
+              tags$li("Ve a la pestaña 'Diagnóstico' para verificar que los datos se carguen correctamente"),
+              tags$li("Usa la pestaña 'Datos Crudos' para explorar los datos"),
+              tags$li("La pestaña 'Visión General' mostrará gráficos una vez los datos estén cargados")
+            ),
+            
+            h3("Solución de Problemas"),
+            tags$ul(
+              tags$li("Si no se cargan los datos: Verifica el nombre y ubicación del archivo CSV"),
+              tags$li("Si los gráficos no se muestran: Revisa el formato de las columnas, especialmente las fechas"),
+              tags$li("Si hay errores de fecha: Asegúrate que estén en formato dd/mm/yyyy")
+            ),
+            
+            h3("Tecnologías Utilizadas"),
+            tags$ul(
+              tags$li("R Shiny para la aplicación web"),
+              tags$li("Plotly para gráficos interactivos"),
+              tags$li("Dplyr para manipulación de datos")
+            )
+          )
+        )
+      )
+    )
+  )
+)
+
+# ==============================================================================
+# 2. SERVIDOR (SERVER)
+# ==============================================================================
+server <- function(input, output, session) {
+  
+  # Cargar datos de manera robusta
+  load_data <- function() {
+    tryCatch({
+      # Intenta cargar el archivo CSV
+      df <- read.csv("incendios.csv", stringsAsFactors = FALSE, 
+                     na.strings = c("", "NA", "N/A", "NULL"))
+      
+      # Mensaje de éxito
+      showNotification("✅ Datos cargados exitosamente", type = "message")
+      
+      return(df)
+      
+    }, error = function(e) {
+      # Si hay error, muestra mensaje y retorna NULL
+      error_msg <- paste("Error al cargar datos:", e$message)
+      showNotification(error_msg, type = "error", duration = 10)
+      return(NULL)
+    })
+  }
+  
+  # Datos reactivos
+  data_raw <- reactive({
+    df <- load_data()
+    return(df)
+  })
+  
+  # Datos procesados
+  data_processed <- reactive({
+    df <- data_raw()
+    
+    if (is.null(df) || nrow(df) == 0) {
+      return(data.frame())
+    }
+    
+    # Intentar procesar fecha
+    if ("deteccion" %in% names(df)) {
+      # Mostrar algunos valores de fecha para diagnóstico
+      print("Primeras fechas en deteccion:")
+      print(head(df$deteccion))
+      
+      # Intentar convertir fecha
+      tryCatch({
+        df$fecha <- dmy(df$deteccion)
+        df$anio <- year(df$fecha)
+        df$mes <- month(df$fecha)
+      }, error = function(e) {
+        showNotification(paste("Error procesando fechas:", e$message), 
+                         type = "warning")
+      })
+    }
+    
+    return(df)
+  })
+  
+  # ============================================================================
+  # SALIDAS PARA DIAGNÓSTICO
+  # ============================================================================
+  
+  output$load_info <- renderPrint({
+    df <- data_raw()
+    
+    if (is.null(df)) {
+      cat("❌ NO SE PUDO CARGAR EL ARCHIVO\n")
+      cat("Asegúrate de que 'incendios.csv' esté en el mismo directorio que este script.\n")
+    } else {
+      cat("✅ ARCHIVO CARGADO EXITOSAMENTE\n")
+      cat("=================================\n")
+      cat(sprintf("Número de filas: %d\n", nrow(df)))
+      cat(sprintf("Número de columnas: %d\n", ncol(df)))
+      cat("\n")
+      cat("PRIMERAS FILAS:\n")
+      print(head(df, 3))
+    }
+  })
+  
+  output$column_names <- renderPrint({
+    df <- data_raw()
+    
+    if (is.null(df)) {
+      cat("No hay datos cargados\n")
+    } else {
+      cat("COLUMNAS DISPONIBLES:\n")
+      cat("=====================\n")
+      for (i in 1:length(names(df))) {
+        cat(sprintf("%d. %s\n", i, names(df)[i]))
+      }
+    }
+  })
+  
+  output$missing_values <- renderPrint({
+    df <- data_raw()
+    
+    if (is.null(df)) {
+      cat("No hay datos cargados\n")
+    } else {
+      cat("VALORES FALTANTES POR COLUMNA:\n")
+      cat("==============================\n")
+      missing_counts <- colSums(is.na(df))
+      for (col in names(missing_counts)) {
+        cat(sprintf("%s: %d valores NA (%.1f%%)\n", 
+                    col, missing_counts[col], 
+                    100 * missing_counts[col] / nrow(df)))
+      }
+    }
+  })
+  
+  # ============================================================================
+  # SALIDAS PARA VISIÓN GENERAL
+  # ============================================================================
+  
+  output$total_incendios <- renderValueBox({
+    df <- data_processed()
+    
+    if (is.null(df) || nrow(df) == 0) {
+      value <- "0"
+    } else {
+      value <- format(nrow(df), big.mark = ",")
+    }
+    
+    valueBox(
+      value = value,
+      subtitle = "Total de Incendios",
+      icon = icon("fire"),
+      color = "red"
+    )
+  })
+  
+  output$superficie_quemada <- renderValueBox({
+    df <- data_processed()
+    
+    if (is.null(df) || nrow(df) == 0 || !"perdidassuperficiales" %in% names(df)) {
+      total_area <- 0
+    } else {
+      total_area <- sum(df$perdidassuperficiales, na.rm = TRUE)
+    }
+    
+    valueBox(
+      value = paste(format(round(total_area, 1), big.mark = ","), "ha"),
+      subtitle = "Superficie Quemada",
+      icon = icon("mountain"),
+      color = "orange"
+    )
+  })
+  
+  output$anio_min <- renderValueBox({
+    df <- data_processed()
+    
+    if (is.null(df) || nrow(df) == 0 || !"anio" %in% names(df)) {
+      anio_val <- "N/A"
+    } else {
+      anio_val <- min(df$anio, na.rm = TRUE)
+    }
+    
+    valueBox(
+      value = anio_val,
+      subtitle = "Año Más Antiguo",
+      icon = icon("calendar"),
+      color = "blue"
+    )
+  })
+  
+  output$anio_max <- renderValueBox({
+    df <- data_processed()
+    
+    if (is.null(df) || nrow(df) == 0 || !"anio" %in% names(df)) {
+      anio_val <- "N/A"
+    } else {
+      anio_val <- max(df$anio, na.rm = TRUE)
+    }
+    
+    valueBox(
+      value = anio_val,
+      subtitle = "Año Más Reciente",
+      icon = icon("calendar-check"),
+      color = "green"
+    )
+  })
+  
+  output$test_plot <- renderPlotly({
+    df <- data_processed()
+    
+    if (is.null(df) || nrow(df) == 0) {
+      # Gráfico vacío con mensaje
+      p <- plot_ly() %>%
+        add_annotations(
+          text = "No hay datos disponibles",
+          x = 0.5,
+          y = 0.5,
+          xref = "paper",
+          yref = "paper",
+          showarrow = FALSE,
+          font = list(size = 20)
+        ) %>%
+        layout(
+          xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+          yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE)
+        )
+      return(p)
+    }
+    
+    # Intentar diferentes tipos de gráficos según los datos disponibles
+    
+    # Opción 1: Gráfico por año si tenemos columna 'anio'
+    if ("anio" %in% names(df)) {
+      df_summary <- df %>%
+        group_by(anio) %>%
+        summarise(n = n()) %>%
+        filter(!is.na(anio))
+      
+      if (nrow(df_summary) > 0) {
+        p <- plot_ly(df_summary, x = ~anio, y = ~n, 
+                     type = 'bar',
+                     marker = list(color = '#FF6B6B')) %>%
+          layout(
+            title = "Número de Incendios por Año",
+            xaxis = list(title = "Año"),
+            yaxis = list(title = "Número de Incendios")
+          )
+        return(p)
+      }
+    }
+    
+    # Opción 2: Gráfico simple si tenemos datos numéricos
+    if (nrow(df) > 0) {
+      # Crear gráfico simple con los primeros 20 registros
+      df_sample <- head(df, 20)
+      df_sample$id <- 1:nrow(df_sample)
+      
+      p <- plot_ly(df_sample, x = ~id, y = ~1,
+                   type = 'scatter', mode = 'markers',
+                   text = ~paste("Fila:", id),
+                   marker = list(size = 10, color = '#36D1DC')) %>%
+        layout(
+          title = "Muestra de Datos (primeras 20 filas)",
+          xaxis = list(title = "Número de Fila"),
+          yaxis = list(title = "", showticklabels = FALSE)
+        )
+      return(p)
+    }
+    
+    # Si llegamos aquí, no hay datos adecuados
+    plot_ly() %>%
+      add_annotations(
+        text = "Datos insuficientes para generar gráfico",
+        x = 0.5,
+        y = 0.5,
+        xref = "paper",
+        yref = "paper",
+        showarrow = FALSE,
+        font = list(size = 16)
+      )
+  })
+  
+  output$data_summary <- renderTable({
+    df <- data_processed()
+    
+    if (is.null(df) || nrow(df) == 0) {
+      return(data.frame(Mensaje = "No hay datos disponibles"))
+    }
+    
+    # Crear resumen simple
+    data.frame(
+      Estadística = c("Total de registros", 
+                      "Columnas disponibles", 
+                      "Primer año",
+                      "Último año",
+                      "Datos con coordenadas"),
+      Valor = c(
+        nrow(df),
+        ncol(df),
+        ifelse("anio" %in% names(df), min(df$anio, na.rm = TRUE), "N/A"),
+        ifelse("anio" %in% names(df), max(df$anio, na.rm = TRUE), "N/A"),
+        ifelse(all(c("latitud", "longitud") %in% names(df)), 
+               sum(!is.na(df$latitud) & !is.na(df$longitud)), 
+               "N/A")
+      )
+    )
+  })
+  
+  # ============================================================================
+  # SALIDAS PARA DATOS CRUDOS
+  # ============================================================================
+  
+  output$raw_data_head <- renderDT({
+    df <- data_raw()
+    
+    if (is.null(df)) {
+      datatable(
+        data.frame(Mensaje = "No se pudieron cargar los datos"),
+        options = list(pageLength = 5, dom = 't')
+      )
+    } else {
+      datatable(
+        head(df, 10),
+        options = list(pageLength = 5, scrollX = TRUE),
+        rownames = FALSE
+      )
+    }
+  })
+  
+  output$data_structure <- renderPrint({
+    df <- data_raw()
+    
+    if (is.null(df)) {
+      cat("No hay datos cargados\n")
+    } else {
+      str(df)
+    }
+  })
+  
+  output$data_stats <- renderPrint({
+    df <- data_processed()
+    
+    if (is.null(df) || nrow(df) == 0) {
+      cat("No hay datos procesados\n")
+    } else {
+      cat("ESTADÍSTICAS BÁSICAS:\n")
+      cat("=====================\n\n")
+      
+      # Columnas numéricas
+      numeric_cols <- sapply(df, is.numeric)
+      if (any(numeric_cols)) {
+        cat("Columnas numéricas:\n")
+        for (col in names(df)[numeric_cols]) {
+          cat(sprintf("\n%s:\n", col))
+          cat(sprintf("  Mín: %s\n", min(df[[col]], na.rm = TRUE)))
+          cat(sprintf("  Máx: %s\n", max(df[[col]], na.rm = TRUE)))
+          cat(sprintf("  Media: %.2f\n", mean(df[[col]], na.rm = TRUE)))
+          cat(sprintf("  NA's: %d\n", sum(is.na(df[[col]]))))
+        }
+      }
+    }
+  })
+  
+  # ============================================================================
+  # GRÁFICO DE DIAGNÓSTICO INTERACTIVO
+  # ============================================================================
+  
+  observeEvent(input$test_plot_btn, {
+    output$diagnostic_plot <- renderPlotly({
+      df <- data_raw()
+      
+      if (is.null(df) || nrow(df) == 0) {
+        return(plot_ly() %>%
+                 add_annotations(
+                   text = "No hay datos",
+                   x = 0.5, y = 0.5,
+                   showarrow = FALSE
+                 ))
+      }
+      
+      # Crear un gráfico de diagnóstico simple
+      df$row_id <- 1:nrow(df)
+      
+      # Seleccionar una columna numérica si existe
+      numeric_cols <- names(df)[sapply(df, is.numeric)]
+      
+      if (length(numeric_cols) > 0) {
+        # Usar la primera columna numérica
+        col_name <- numeric_cols[1]
+        p <- plot_ly(df, x = ~row_id, y = ~get(col_name),
+                     type = 'scatter', mode = 'markers',
+                     name = col_name) %>%
+          layout(
+            title = paste("Distribución de", col_name),
+            xaxis = list(title = "Número de fila"),
+            yaxis = list(title = col_name)
+          )
+      } else {
+        # Si no hay columnas numéricas, mostrar conteo de filas
+        p <- plot_ly(x = 1:nrow(df), y = rep(1, nrow(df)),
+                     type = 'scatter', mode = 'markers',
+                     marker = list(size = 5)) %>%
+          layout(
+            title = "Distribución de registros",
+            xaxis = list(title = "Número de fila"),
+            yaxis = list(title = "", showticklabels = FALSE)
+          )
+      }
+      
+      return(p)
+    })
+  })
+  
+  # ============================================================================
+  # OBSERVADORES
+  # ============================================================================
+  
+  observe({
+    df <- data_processed()
+    
+    if (!is.null(df) && nrow(df) > 0 && "anio" %in% names(df)) {
+      anos <- na.omit(unique(df$anio))
+      if (length(anos) > 0) {
+        updateSliderInput(session, "year_range",
+                          min = min(anos),
+                          max = max(anos),
+                          value = c(min(anos), max(anos)))
+      }
+    }
+  })
+  
+  observeEvent(input$reset_filters, {
+    df <- data_processed()
+    
+    if (!is.null(df) && nrow(df) > 0 && "anio" %in% names(df)) {
+      anos <- na.omit(unique(df$anio))
+      if (length(anos) > 0) {
+        updateSliderInput(session, "year_range",
+                          value = c(min(anos), max(anos)))
+      }
+    }
+  })
+}
+
+# ==============================================================================
+# 3. EJECUCIÓN DE LA APLICACIÓN
+# ==============================================================================
+shinyApp(ui = ui, server = server)
